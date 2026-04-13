@@ -62,9 +62,17 @@ def build_email_html(stocks: list, scan_time: str) -> str:
         price = s.get("price", 0)
         rs = s.get("rs_rating", s.get("rs", 0))
 
+        level = s.get("_signal_level", "🔵 Tốt")
+        desc  = s.get("_signal_desc", "")
+
         stock_cards += f"""
         <div style="background:#111418;border:1px solid rgba(255,255,255,0.08);border-radius:12px;
-                    padding:16px;margin-bottom:12px;border-left:3px solid {SIG_COLORS.get(s.get('signals',s.get('sigs',[''])) [0], '#00e5a0')};">
+                    padding:16px;margin-bottom:12px;border-left:3px solid {SIG_COLORS.get(s.get('signals',s.get('sigs',['']))[0], '#00e5a0')};">
+          <div style="margin-bottom:8px;">
+            <span style="background:rgba(0,229,160,0.1);color:#00e5a0;border:1px solid rgba(0,229,160,0.25);
+                         border-radius:20px;padding:3px 12px;font-size:11px;font-weight:600;">{level}</span>
+            <span style="color:#636b7a;font-size:11px;margin-left:8px;">{desc}</span>
+          </div>
           <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
             <div>
               <div style="font-family:'Courier New',monospace;font-size:22px;font-weight:800;color:#e8eaf0;">{s.get('ticker','')}</div>
@@ -162,12 +170,11 @@ def send_alert_email(stocks: list, scan_time: str) -> bool:
     try:
         import httpx
 
-        sig_summary = []
-        for s in stocks:
-            sigs = s.get("signals", s.get("sigs", []))
-            sig_summary.append(f"{s.get('ticker','')} ({', '.join(sigs)})")
+        # Xác định mức độ mạnh nhất trong batch
+        has_strongest = any(s.get("_signal_level","").startswith("⭐") for s in stocks)
+        level_label = "⭐ Setup hoàn hảo" if has_strongest else "🔵 Tín hiệu tốt"
 
-        subject = f"🔔 VNScan: {len(stocks)} tín hiệu mới — {', '.join([s.get('ticker','') for s in stocks[:3]])}{'...' if len(stocks)>3 else ''}"
+        subject = f"{level_label} — {len(stocks)} mã: {', '.join([s.get('ticker','') for s in stocks[:3]])}{'...' if len(stocks)>3 else ''} | VNScan"
 
         payload = {
             "personalizations": [{
@@ -208,10 +215,45 @@ def send_alert_email(stocks: list, scan_time: str) -> bool:
 _last_sent_tickers: set = set()
 
 
+def is_strong_signal(stock: dict) -> tuple:
+    """
+    Kiểm tra tín hiệu theo logic kết hợp Minervini + Miner.
+    Trả về (đủ điều kiện gửi email, mức độ, mô tả).
+    """
+    sigs = set(stock.get("signals", stock.get("sigs", [])))
+
+    # ⭐ MẠNH NHẤT: Breakout + Stage 2 + Volume (cả 3)
+    if {"breakout", "stage2", "volume"}.issubset(sigs):
+        return True, "⭐ Mạnh nhất", "Breakout + Stage 2 + Volume Surge"
+
+    # 🔵 TỐT: các combo 2 tín hiệu có ý nghĩa
+    if {"breakout", "stage2"}.issubset(sigs):
+        return True, "🔵 Tốt", "Breakout + Stage 2"
+
+    if {"vcp", "stage2"}.issubset(sigs):
+        return True, "🔵 Tốt", "VCP + Stage 2 (chuẩn bị breakout)"
+
+    if {"fib", "elliott"}.issubset(sigs):
+        return True, "🔵 Tốt", "Fibonacci + Elliott (Miner xác nhận)"
+
+    if {"breakout", "volume"}.issubset(sigs):
+        return True, "🔵 Tốt", "Breakout + Volume Surge"
+
+    if {"vcp", "fib"}.issubset(sigs):
+        return True, "🔵 Tốt", "VCP + Fibonacci"
+
+    if {"stage2", "volume"}.issubset(sigs):
+        return True, "🔵 Tốt", "Stage 2 + Volume Surge"
+
+    # 🟡 ĐƠN LẺ: chỉ 1 tín hiệu → không gửi email
+    return False, "🟡 Đơn lẻ", "Chưa đủ xác nhận"
+
+
 def filter_new_signals(stocks: list) -> list:
     """
-    Chỉ lấy các mã có tín hiệu MỚI (chưa gửi email trong phiên này).
-    Reset sau mỗi ngày giao dịch.
+    Chỉ lấy các mã:
+    1. Có tín hiệu kết hợp đủ mạnh (tối thiểu 2 tín hiệu có nghĩa)
+    2. Chưa gửi email trong phiên này (tránh gửi trùng)
     """
     global _last_sent_tickers
     new_stocks = []
@@ -219,9 +261,19 @@ def filter_new_signals(stocks: list) -> list:
         ticker = s.get("ticker", "")
         sigs   = tuple(sorted(s.get("signals", s.get("sigs", []))))
         key    = f"{ticker}:{sigs}"
+
+        # Kiểm tra logic kết hợp
+        qualified, level, desc = is_strong_signal(s)
+        if not qualified:
+            continue  # bỏ qua tín hiệu đơn lẻ
+
+        # Kiểm tra chưa gửi trong phiên
         if key not in _last_sent_tickers:
+            s["_signal_level"] = level
+            s["_signal_desc"]  = desc
             new_stocks.append(s)
             _last_sent_tickers.add(key)
+
     return new_stocks
 
 
