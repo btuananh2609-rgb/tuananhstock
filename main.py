@@ -24,8 +24,10 @@ app = FastAPI(title="VNScan API", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_methods=["GET", "POST"],
+    allow_credentials=False,
+    allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 scheduler = AsyncIOScheduler(timezone="Asia/Ho_Chi_Minh")
