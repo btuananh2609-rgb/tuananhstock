@@ -747,8 +747,9 @@ async function runScan() {
 
     const now = new Date();
     const scanTime = data.last_scan ? new Date(data.last_scan) : now;
-    const hh = scanTime.getHours().toString().padStart(2,'0');
-    const mm = scanTime.getMinutes().toString().padStart(2,'0');
+    const vnTime = new Date(scanTime.getTime() + (scanTime.getTimezoneOffset() * 60000) + (7 * 3600000));
+    const hh = vnTime.getHours().toString().padStart(2,'0');
+    const mm = vnTime.getMinutes().toString().padStart(2,'0');
     document.getElementById('last-scan').textContent =
       `Dữ liệu thật — cập nhật ${hh}:${mm} — ${data.summary?.total_scanned || raw.length} mã phân tích`;
 
