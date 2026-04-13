@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>VN Stock Scanner — Minervini & Miner</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0c0f;
+    --bg2: #111418;
+    --bg3: #181d24;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.13);
+    --text: #e8eaf0;
+    --muted: #636b7a;
+    --accent: #00e5a0;
+    --accent2: #0095ff;
+    --warn: #ffb800;
+    --danger: #ff4757;
+    --mono: 'IBM Plex Mono', monospace;
+    --display: 'Syne', sans-serif;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:var(--mono); min-height:100vh; }
+
+  /* TOP BAR */
+  .topbar {
+    position:sticky; top:0; z-index:100;
+    background:rgba(10,12,15,0.92); backdrop-filter:blur(12px);
+    border-bottom:1px solid var(--border);
+    padding:12px 16px;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .logo { font-family:var(--display); font-weight:800; font-size:17px; letter-spacing:-0.5px; }
+  .logo span { color:var(--accent); }
+  .market-status { display:flex; align-items:center; gap:8px; font-size:11px; color:var(--muted); }
+  .dot { width:7px; height:7px; border-radius:50%; background:var(--accent); animation:pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  /* NAV TABS */
+  .tabs {
+    display:flex; gap:2px; padding:10px 16px;
+    border-bottom:1px solid var(--border);
+    overflow-x:auto; scrollbar-width:none;
+  }
+  .tabs::-webkit-scrollbar { display:none; }
+  .tab {
+    padding:6px 14px; border-radius:6px; font-size:11px; font-family:var(--mono);
+    cursor:pointer; border:1px solid transparent; white-space:nowrap;
+    color:var(--muted); transition:all 0.15s;
+  }
+  .tab.active { background:var(--bg3); border-color:var(--border2); color:var(--text); }
+  .tab:hover:not(.active) { color:var(--text); }
+
+  /* MARKET OVERVIEW */
+  .overview {
+    display:grid; grid-template-columns:repeat(3,1fr); gap:8px; padding:12px 16px;
+  }
+  .idx-card {
+    background:var(--bg2); border:1px solid var(--border); border-radius:10px;
+    padding:10px 12px;
+  }
+  .idx-name { font-size:10px; color:var(--muted); margin-bottom:4px; }
+  .idx-val { font-size:16px; font-weight:600; font-family:var(--display); }
+  .idx-chg { font-size:11px; margin-top:2px; }
+  .up { color:var(--accent); }
+  .dn { color:var(--danger); }
+  .flat { color:var(--muted); }
+
+  /* SECTION HEADER */
+  .sec-hdr {
+    padding:14px 16px 8px;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .sec-title { font-family:var(--display); font-size:14px; font-weight:700; letter-spacing:-0.3px; }
+  .sec-badge {
+    font-size:10px; padding:3px 8px; border-radius:20px;
+    background:rgba(0,229,160,0.12); color:var(--accent); border:1px solid rgba(0,229,160,0.25);
+  }
+
+  /* FILTER ROW */
+  .filters {
+    display:flex; gap:6px; padding:0 16px 10px; overflow-x:auto; scrollbar-width:none;
+  }
+  .filters::-webkit-scrollbar { display:none; }
+  .filter-btn {
+    padding:5px 12px; border-radius:20px; font-size:10px; font-family:var(--mono);
+    cursor:pointer; white-space:nowrap; border:1px solid var(--border2);
+    background:transparent; color:var(--muted); transition:all 0.15s;
+  }
+  .filter-btn.on { background:var(--bg3); color:var(--text); border-color:var(--accent); }
+
+  /* STOCK CARDS */
+  .stock-list { padding:0 16px; display:flex; flex-direction:column; gap:8px; }
+
+  .stock-card {
+    background:var(--bg2); border:1px solid var(--border); border-radius:12px;
+    padding:14px; cursor:pointer; transition:border-color 0.15s;
+    position:relative; overflow:hidden;
+  }
+  .stock-card::before {
+    content:''; position:absolute; left:0; top:0; bottom:0; width:3px;
+    border-radius:3px 0 0 3px;
+  }
+  .stock-card.sig-break::before { background:var(--accent); }
+  .stock-card.sig-watch::before { background:var(--warn); }
+  .stock-card.sig-vcp::before { background:var(--accent2); }
+  .stock-card:hover { border-color:var(--border2); }
+
+  .card-top { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; }
+  .ticker { font-family:var(--display); font-size:18px; font-weight:800; letter-spacing:-0.5px; }
+  .company-name { font-size:10px; color:var(--muted); margin-top:1px; }
+  .price-box { text-align:right; }
+  .price { font-size:17px; font-weight:600; }
+  .price-chg { font-size:11px; margin-top:1px; }
+
+  /* SIGNALS */
+  .signals { display:flex; gap:5px; flex-wrap:wrap; margin-bottom:10px; }
+  .sig-tag {
+    font-size:9px; padding:3px 8px; border-radius:20px; font-weight:500;
+    letter-spacing:0.3px;
+  }
+  .sig-tag.breakout { background:rgba(0,229,160,0.12); color:var(--accent); border:1px solid rgba(0,229,160,0.25); }
+  .sig-tag.vcp { background:rgba(0,149,255,0.12); color:var(--accent2); border:1px solid rgba(0,149,255,0.25); }
+  .sig-tag.stage2 { background:rgba(255,184,0,0.12); color:var(--warn); border:1px solid rgba(255,184,0,0.25); }
+  .sig-tag.volume { background:rgba(255,71,87,0.10); color:var(--danger); border:1px solid rgba(255,71,87,0.25); }
+  .sig-tag.fib { background:rgba(180,130,255,0.12); color:#c084fc; border:1px solid rgba(180,130,255,0.25); }
+  .sig-tag.elliott { background:rgba(255,140,0,0.12); color:#fb923c; border:1px solid rgba(255,140,0,0.25); }
+
+  /* MINI CHART */
+  .mini-chart-wrap { height:50px; margin-bottom:10px; position:relative; }
+  canvas.mini { width:100%; height:50px; }
+
+  /* METRICS GRID */
+  .metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+  .metric { text-align:center; }
+  .metric-lbl { font-size:9px; color:var(--muted); margin-bottom:2px; }
+  .metric-val { font-size:11px; font-weight:600; }
+
+  /* MA STATUS BAR */
+  .ma-bar { display:flex; gap:4px; margin-top:8px; }
+  .ma-pill {
+    font-size:9px; padding:2px 7px; border-radius:4px; font-weight:500;
+  }
+  .ma-pill.ok { background:rgba(0,229,160,0.15); color:var(--accent); }
+  .ma-pill.bad { background:rgba(255,71,87,0.12); color:var(--danger); }
+  .ma-pill.mid { background:rgba(255,184,0,0.12); color:var(--warn); }
+
+  /* WATCHLIST SECTION */
+  .watchlist-input-row {
+    display:flex; gap:8px; padding:0 16px 12px;
+  }
+  .watchlist-input {
+    flex:1; background:var(--bg3); border:1px solid var(--border2); border-radius:8px;
+    padding:9px 12px; font-family:var(--mono); font-size:12px; color:var(--text);
+    outline:none; text-transform:uppercase;
+  }
+  .watchlist-input::placeholder { color:var(--muted); text-transform:none; }
+  .watchlist-input:focus { border-color:var(--accent); }
+  .add-btn {
+    background:var(--accent); color:#000; border:none; border-radius:8px;
+    padding:9px 16px; font-family:var(--display); font-size:12px; font-weight:700;
+    cursor:pointer;
+  }
+
+  /* DETAIL PANEL */
+  .detail-panel {
+    position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:200;
+    display:none; align-items:flex-end;
+  }
+  .detail-panel.open { display:flex; }
+  .detail-sheet {
+    background:var(--bg2); width:100%; border-radius:20px 20px 0 0;
+    max-height:85vh; overflow-y:auto; padding:20px 20px 40px;
+    border-top:1px solid var(--border2);
+  }
+  .sheet-handle { width:36px; height:4px; background:var(--border2); border-radius:2px; margin:0 auto 16px; }
+  .sheet-ticker { font-family:var(--display); font-size:28px; font-weight:800; }
+  .sheet-price { font-size:24px; font-weight:600; margin:4px 0 12px; }
+  .criteria-list { display:flex; flex-direction:column; gap:8px; margin-top:16px; }
+  .criteria-row {
+    display:flex; justify-content:space-between; align-items:center;
+    padding:10px 12px; background:var(--bg3); border-radius:8px;
+    border:1px solid var(--border);
+  }
+  .criteria-name { font-size:12px; color:var(--muted); }
+  .criteria-val { font-size:12px; font-weight:600; }
+  .close-sheet {
+    position:absolute; top:16px; right:20px; background:var(--bg3);
+    border:1px solid var(--border2); border-radius:50%; width:32px; height:32px;
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+    font-size:14px; color:var(--muted);
+  }
+
+  /* ALERT CONFIG */
+  .alert-section { padding:0 16px 16px; }
+  .alert-card {
+    background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:14px;
+  }
+  .alert-row { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--border); }
+  .alert-row:last-child { border-bottom:none; padding-bottom:0; }
+  .alert-lbl { font-size:12px; }
+  .alert-desc { font-size:10px; color:var(--muted); margin-top:2px; }
+  .toggle {
+    width:42px; height:24px; border-radius:12px; background:var(--border2);
+    position:relative; cursor:pointer; transition:background 0.2s;
+    border:none; flex-shrink:0;
+  }
+  .toggle.on { background:var(--accent); }
+  .toggle::after {
+    content:''; position:absolute; width:18px; height:18px; border-radius:50%;
+    background:#fff; top:3px; left:3px; transition:transform 0.2s;
+  }
+  .toggle.on::after { transform:translateX(18px); }
+  .email-input-row { display:flex; gap:8px; margin-top:10px; }
+  .email-in {
+    flex:1; background:var(--bg3); border:1px solid var(--border2); border-radius:8px;
+    padding:8px 12px; font-family:var(--mono); font-size:11px; color:var(--text); outline:none;
+  }
+  .email-in:focus { border-color:var(--accent); }
+  .save-btn {
+    background:transparent; border:1px solid var(--accent); color:var(--accent);
+    border-radius:8px; padding:8px 14px; font-family:var(--mono); font-size:11px; cursor:pointer;
+  }
+
+  /* EMPTY STATE */
+  .empty { text-align:center; padding:40px 20px; color:var(--muted); font-size:12px; }
+
+  /* BOTTOM NAV */
+  .bottom-nav {
+    position:fixed; bottom:0; left:0; right:0;
+    background:rgba(10,12,15,0.95); backdrop-filter:blur(12px);
+    border-top:1px solid var(--border);
+    display:flex; padding:8px 0 20px;
+  }
+  .nav-item {
+    flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;
+    cursor:pointer; padding:4px; color:var(--muted); font-size:9px;
+    transition:color 0.15s;
+  }
+  .nav-item.active { color:var(--accent); }
+  .nav-icon { font-size:20px; }
+
+  /* SPACER for bottom nav */
+  .bottom-spacer { height:80px; }
+
+  /* PAGE */
+  .page { display:none; }
+  .page.active { display:block; }
+
+  /* SCAN BUTTON */
+  .scan-btn {
+    margin:0 16px 12px; width:calc(100% - 32px);
+    background:var(--accent); color:#000; border:none; border-radius:10px;
+    padding:13px; font-family:var(--display); font-size:13px; font-weight:700;
+    cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;
+  }
+  .scan-btn:active { opacity:0.85; }
+  .spin { display:none; width:14px; height:14px; border:2px solid #000; border-top-color:transparent; border-radius:50%; animation:spin 0.6s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  /* ALERT BADGE */
+  .alert-badge {
+    position:absolute; top:-4px; right:-4px; width:16px; height:16px;
+    background:var(--danger); border-radius:50%; font-size:9px; font-weight:700;
+    display:flex; align-items:center; justify-content:center; color:#fff;
+  }
+  .nav-icon-wrap { position:relative; display:inline-block; }
+
+  /* REFRESH INFO */
+  .refresh-info { font-size:10px; color:var(--muted); padding:0 16px 8px; }
+
+  /* SCORE RING */
+  .score-ring { display:flex; align-items:center; gap:8px; margin-top:10px; }
+  .ring-label { font-size:10px; color:var(--muted); }
+  .ring-bar { flex:1; height:4px; background:var(--border2); border-radius:2px; overflow:hidden; }
+  .ring-fill { height:100%; border-radius:2px; transition:width 0.5s; }
+
+  /* CHART FULL */
+  .chart-full-wrap { height:120px; margin:12px 0; }
+
+  /* SECTOR TAG */
+  .sector-tag { font-size:9px; color:var(--muted); margin-top:2px; }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="logo">VN<span>Scan</span></div>
+  <div class="market-status">
+    <div class="dot" id="mkt-dot"></div>
+    <span id="mkt-label">Đang cập nhật...</span>
+    <span id="clock" style="margin-left:6px"></span>
+  </div>
+</div>
+
+<!-- TAB NAV -->
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('scanner')">Scanner</div>
+  <div class="tab" onclick="switchTab('watchlist')">Watchlist</div>
+  <div class="tab" onclick="switchTab('alerts')">Cảnh báo</div>
+  <div class="tab" onclick="switchTab('guide')">Quy tắc</div>
+</div>
+
+<!-- ===== PAGE: SCANNER ===== -->
+<div class="page active" id="page-scanner">
+
+  <!-- MARKET OVERVIEW -->
+  <div class="overview">
+    <div class="idx-card">
+      <div class="idx-name">VN-Index</div>
+      <div class="idx-val up" id="vnindex-val">—</div>
+      <div class="idx-chg up" id="vnindex-chg">—</div>
+    </div>
+    <div class="idx-card">
+      <div class="idx-name">VN30</div>
+      <div class="idx-val up" id="vn30-val">—</div>
+      <div class="idx-chg up" id="vn30-chg">—</div>
+    </div>
+    <div class="idx-card">
+      <div class="idx-name">KLGD (tỷ)</div>
+      <div class="idx-val" id="vol-val">—</div>
+      <div class="idx-chg flat" id="vol-chg">—</div>
+    </div>
+  </div>
+
+  <p class="refresh-info" id="last-scan">Chưa quét — nhấn Quét ngay</p>
+
+  <!-- SCAN BUTTON -->
+  <button class="scan-btn" onclick="runScan()">
+    <span class="spin" id="scan-spin"></span>
+    <span id="scan-label">⚡ Quét tín hiệu ngay</span>
+  </button>
+
+  <!-- FILTERS -->
+  <div class="filters">
+    <button class="filter-btn on" onclick="toggleFilter(this,'all')">Tất cả</button>
+    <button class="filter-btn" onclick="toggleFilter(this,'breakout')">Breakout</button>
+    <button class="filter-btn" onclick="toggleFilter(this,'vcp')">VCP</button>
+    <button class="filter-btn" onclick="toggleFilter(this,'stage2')">Stage 2</button>
+    <button class="filter-btn" onclick="toggleFilter(this,'volume')">Volume Surge</button>
+    <button class="filter-btn" onclick="toggleFilter(this,'fib')">Fibonacci</button>
+    <button class="filter-btn" onclick="toggleFilter(this,'elliott')">Elliott</button>
+  </div>
+
+  <!-- SEC HEADER -->
+  <div class="sec-hdr">
+    <div class="sec-title">Tín hiệu phát hiện</div>
+    <div class="sec-badge" id="sig-count">0 mã</div>
+  </div>
+
+  <div class="stock-list" id="stock-list">
+    <div class="empty">Nhấn "Quét tín hiệu ngay" để bắt đầu phân tích</div>
+  </div>
+
+  <div class="bottom-spacer"></div>
+</div>
+
+<!-- ===== PAGE: WATCHLIST ===== -->
+<div class="page" id="page-watchlist">
+  <div class="sec-hdr">
+    <div class="sec-title">Danh sách theo dõi</div>
+    <div class="sec-badge" id="wl-count">0 mã</div>
+  </div>
+  <div class="watchlist-input-row">
+    <input class="watchlist-input" id="wl-input" placeholder="Nhập mã VD: FPT, VNM, HPG..." maxlength="10">
+    <button class="add-btn" onclick="addToWatchlist()">Thêm</button>
+  </div>
+  <div class="stock-list" id="watchlist-stocks">
+    <div class="empty">Chưa có mã nào — thêm mã để theo dõi</div>
+  </div>
+  <div class="bottom-spacer"></div>
+</div>
+
+<!-- ===== PAGE: ALERTS ===== -->
+<div class="page" id="page-alerts">
+  <div class="sec-hdr">
+    <div class="sec-title">Cấu hình cảnh báo</div>
+  </div>
+  <div class="alert-section">
+    <div class="alert-card">
+      <div class="alert-row">
+        <div>
+          <div class="alert-lbl">🟢 Breakout Minervini</div>
+          <div class="alert-desc">Giá phá vỡ pivot point + volume tăng mạnh</div>
+        </div>
+        <button class="toggle on" id="tog-breakout" onclick="toggleAlert(this)"></button>
+      </div>
+      <div class="alert-row">
+        <div>
+          <div class="alert-lbl">🔵 Mẫu VCP</div>
+          <div class="alert-desc">Volatility Contraction Pattern hoàn chỉnh</div>
+        </div>
+        <button class="toggle on" id="tog-vcp" onclick="toggleAlert(this)"></button>
+      </div>
+      <div class="alert-row">
+        <div>
+          <div class="alert-lbl">🟡 Stage 2 Uptrend</div>
+          <div class="alert-desc">MA50 > MA150 > MA200, giá trên tất cả MA</div>
+        </div>
+        <button class="toggle on" id="tog-stage2" onclick="toggleAlert(this)"></button>
+      </div>
+      <div class="alert-row">
+        <div>
+          <div class="alert-lbl">🔴 Volume Surge</div>
+          <div class="alert-desc">KLGD tăng >150% so với trung bình 20 phiên</div>
+        </div>
+        <button class="toggle on" id="tog-vol" onclick="toggleAlert(this)"></button>
+      </div>
+      <div class="alert-row">
+        <div>
+          <div class="alert-lbl">🟣 Fibonacci Miner</div>
+          <div class="alert-desc">Giá chạm vùng 38.2%, 61.8% hồi phục</div>
+        </div>
+        <button class="toggle" id="tog-fib" onclick="toggleAlert(this)"></button>
+      </div>
+      <div class="alert-row">
+        <div>
+          <div class="alert-lbl">🟠 Sóng Elliott</div>
+          <div class="alert-desc">Phát hiện bắt đầu sóng 3 hoặc sóng C</div>
+        </div>
+        <button class="toggle" id="tog-elliott" onclick="toggleAlert(this)"></button>
+      </div>
+    </div>
+
+    <div class="sec-hdr" style="padding-left:0;padding-right:0;">
+      <div class="sec-title">Gửi cảnh báo qua Email</div>
+    </div>
+    <div class="alert-card">
+      <div class="alert-row">
+        <div>
+          <div class="alert-lbl">Kích hoạt email</div>
+          <div class="alert-desc">Gửi báo cáo khi phát hiện tín hiệu</div>
+        </div>
+        <button class="toggle on" id="tog-email" onclick="toggleAlert(this)"></button>
+      </div>
+      <div class="email-input-row">
+        <input class="email-in" id="email-in" type="email" placeholder="your@email.com" value="">
+        <button class="save-btn" onclick="saveEmail()">Lưu</button>
+      </div>
+      <div style="margin-top:8px">
+        <div class="alert-row" style="padding-top:8px">
+          <div>
+            <div class="alert-lbl">Tần suất gửi</div>
+            <div class="alert-desc" id="freq-label">Khi có tín hiệu mới</div>
+          </div>
+          <select id="freq-sel" onchange="updateFreq()" style="background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:6px;padding:5px 8px;font-family:var(--mono);font-size:11px">
+            <option value="instant">Tức thì</option>
+            <option value="daily">Hàng ngày 18:00</option>
+            <option value="weekly">Hàng tuần</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div style="padding:12px 0;font-size:10px;color:var(--muted);">
+      ⚠️ Lưu ý: Ứng dụng sử dụng dữ liệu từ API công khai. Để nhận email thật, bạn cần triển khai backend (xem hướng dẫn tab Quy tắc).
+    </div>
+  </div>
+  <div class="bottom-spacer"></div>
+</div>
+
+<!-- ===== PAGE: GUIDE ===== -->
+<div class="page" id="page-guide">
+  <div style="padding:16px">
+    <div style="font-family:var(--display);font-size:20px;font-weight:800;margin-bottom:16px">
+      Bộ lọc & Quy tắc
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:10px">
+
+      <div class="alert-card">
+        <div style="font-size:13px;font-weight:600;color:var(--accent);margin-bottom:8px">🟢 BREAKOUT — Minervini</div>
+        <div style="font-size:11px;color:var(--muted);line-height:1.8">
+          • Giá phá vỡ <strong style="color:var(--text)">pivot point</strong> (đỉnh 52 tuần)<br>
+          • Volume phiên breakout > <strong style="color:var(--text)">150%</strong> TB 50 phiên<br>
+          • Giá trên MA50, MA150, MA200<br>
+          • Không được phép gap xuống sau breakout
+        </div>
+      </div>
+
+      <div class="alert-card">
+        <div style="font-size:13px;font-weight:600;color:var(--accent2);margin-bottom:8px">🔵 VCP — Volatility Contraction</div>
+        <div style="font-size:11px;color:var(--muted);line-height:1.8">
+          • 2–4 lần co hẹp biên độ liên tiếp<br>
+          • Mỗi co hẹp < <strong style="color:var(--text)">50%</strong> của lần trước<br>
+          • Volume giảm dần trong từng đợt<br>
+          • Thời gian tạo nền: 3–65 tuần
+        </div>
+      </div>
+
+      <div class="alert-card">
+        <div style="font-size:13px;font-weight:600;color:var(--warn);margin-bottom:8px">🟡 STAGE 2 — Xu hướng tăng</div>
+        <div style="font-size:11px;color:var(--muted);line-height:1.8">
+          • MA50 &gt; MA150 &gt; MA200 (thứ tự tăng)<br>
+          • Giá &gt; MA50 &gt; MA150 &gt; MA200<br>
+          • MA200 dốc lên ít nhất 1 tháng<br>
+          • 52W High &gt; 1 năm trước tối thiểu 25%
+        </div>
+      </div>
+
+      <div class="alert-card">
+        <div style="font-size:13px;font-weight:600;color:#c084fc;margin-bottom:8px">🟣 FIBONACCI — Robert Miner</div>
+        <div style="font-size:11px;color:var(--muted);line-height:1.8">
+          • Retracement 38.2%, 50%, 61.8% từ đỉnh<br>
+          • Hội tụ nhiều mức Fib (confluence)<br>
+          • Time cycle (DT Oscillator) xác nhận<br>
+          • Kết hợp với sóng Elliott để vào lệnh
+        </div>
+      </div>
+
+      <div class="alert-card">
+        <div style="font-size:13px;font-weight:600;color:#fb923c;margin-bottom:8px">🟠 SÓNG ELLIOTT</div>
+        <div style="font-size:11px;color:var(--muted);line-height:1.8">
+          • Nhận diện sóng 1-2-3-4-5 / A-B-C<br>
+          • Mua đầu sóng 3 (sau khi sóng 2 kết thúc)<br>
+          • Fibonacci ratio xác nhận độ dài sóng<br>
+          • Sóng 3 thường = 1.618 × sóng 1
+        </div>
+      </div>
+
+      <div class="alert-card" style="border-color:rgba(0,229,160,0.2)">
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px">🚀 Triển khai Email thật</div>
+        <div style="font-size:11px;color:var(--muted);line-height:1.8">
+          Để nhận email cảnh báo thật, cần:<br>
+          1. Đặt app này lên <strong style="color:var(--text)">Netlify/Vercel</strong> (miễn phí)<br>
+          2. Thêm backend Python/Node chạy cron mỗi 15 phút<br>
+          3. Dùng <strong style="color:var(--text)">SendGrid</strong> hoặc <strong style="color:var(--text)">Resend</strong> gửi email<br>
+          4. Dữ liệu từ API SSI/TCBS/VnDirect<br><br>
+          <span style="color:var(--accent)">→ Tôi có thể viết code backend đầy đủ nếu bạn cần</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  <div class="bottom-spacer"></div>
+</div>
+
+<!-- DETAIL PANEL -->
+<div class="detail-panel" id="detail-panel" onclick="closeDetail(event)">
+  <div class="detail-sheet" style="position:relative">
+    <div class="sheet-handle"></div>
+    <button class="close-sheet" onclick="closeDetail()">✕</button>
+    <div class="sheet-ticker" id="d-ticker">FPT</div>
+    <div class="sector-tag" id="d-sector">Công nghệ • HOSE</div>
+    <div class="sheet-price" id="d-price">120,000 đ</div>
+
+    <div class="signals" id="d-signals"></div>
+
+    <canvas id="d-chart" style="width:100%;height:100px"></canvas>
+
+    <div style="margin:16px 0 8px;font-size:11px;color:var(--muted);font-weight:600">PHÂN TÍCH CHI TIẾT</div>
+    <div class="criteria-list" id="d-criteria"></div>
+
+    <div style="margin-top:16px;display:flex;gap:8px">
+      <button onclick="addCurrentToWatchlist()" style="flex:1;background:rgba(0,229,160,0.1);border:1px solid rgba(0,229,160,0.3);color:var(--accent);border-radius:8px;padding:11px;font-family:var(--mono);font-size:12px;cursor:pointer">
+        + Thêm vào Watchlist
+      </button>
+      <button onclick="setAlert()" style="flex:1;background:rgba(0,149,255,0.1);border:1px solid rgba(0,149,255,0.3);color:var(--accent2);border-radius:8px;padding:11px;font-family:var(--mono);font-size:12px;cursor:pointer">
+        🔔 Đặt cảnh báo
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- BOTTOM NAV -->
+<div class="bottom-nav">
+  <div class="nav-item active" id="nav-scanner" onclick="switchPage('scanner')">
+    <div class="nav-icon-wrap"><span class="nav-icon">📊</span></div>
+    <span>Scanner</span>
+  </div>
+  <div class="nav-item" id="nav-watchlist" onclick="switchPage('watchlist')">
+    <div class="nav-icon-wrap">
+      <span class="nav-icon">👁</span>
+      <div class="alert-badge" id="wl-badge" style="display:none">0</div>
+    </div>
+    <span>Watchlist</span>
+  </div>
+  <div class="nav-item" id="nav-alerts" onclick="switchPage('alerts')">
+    <div class="nav-icon-wrap">
+      <span class="nav-icon">🔔</span>
+      <div class="alert-badge" id="alert-badge" style="display:none">0</div>
+    </div>
+    <span>Cảnh báo</span>
+  </div>
+  <div class="nav-item" id="nav-guide" onclick="switchPage('guide')">
+    <div class="nav-icon-wrap"><span class="nav-icon">📖</span></div>
+    <span>Quy tắc</span>
+  </div>
+</div>
+
+<script>
+// ==================== CONFIG ====================
+// Tự động nhận URL backend khi chạy từ server Render
+// hoặc dùng URL cố định khi mở local
+const API_BASE = (window.location.hostname === 'localhost' || window.location.protocol === 'file:')
+  ? 'https://tuananhstock.onrender.com'
+  : (window.location.origin);
+
+// Dữ liệu hiện tại (được cập nhật từ API)
+let LIVE_STOCKS = [];
+let watchlist = JSON.parse(localStorage.getItem('wl') || '[]');
+let activeFilter = 'all';
+let currentStock = null;
+let scanned = false;
+
+// ==================== API HELPERS ====================
+async function apiFetch(path) {
+  const url = API_BASE + path;
+  const res = await fetch(url, {
+    method: 'GET',
+    mode: 'cors',
+    credentials: 'omit',
+    headers: { 'Accept': 'application/json' },
+    signal: AbortSignal.timeout(35000)
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
+}
+
+// Chuyển format backend → format render card
+function normalizeStock(s) {
+  const ma = s.ma || {};
+  const chg = s.change_pct ?? s.chg ?? 0;
+  const volRatio = s.vol_ratio ?? 1;
+  const rs = s.rs_rating ?? s.rs ?? 50;
+  // Tạo metrics hiển thị
+  const volPct = volRatio >= 1 ? `+${Math.round((volRatio-1)*100)}%` : `${Math.round((volRatio-1)*100)}%`;
+  const criteria = [];
+  const an = s.analysis || {};
+  if (an.stage2) {
+    criteria.push({n:'Giá vs MA50',   v: ma.above_ma50  ? `${s.price?.toLocaleString('vi-VN')} > ${ma.ma50?.toLocaleString('vi-VN')}` : 'Dưới MA50',  ok: !!ma.above_ma50});
+    criteria.push({n:'Giá vs MA150',  v: ma.above_ma150 ? `Trên MA150 (${ma.ma150?.toLocaleString('vi-VN')})` : 'Dưới MA150', ok: !!ma.above_ma150});
+    criteria.push({n:'Giá vs MA200',  v: ma.above_ma200 ? `Trên MA200 (${ma.ma200?.toLocaleString('vi-VN')})` : 'Dưới MA200', ok: !!ma.above_ma200});
+    if (an.stage2.pct_from_52w_high !== undefined)
+      criteria.push({n:'Khoảng cách đỉnh 52W', v: an.stage2.pct_from_52w_high + '%', ok: an.stage2.pct_from_52w_high > -10});
+  }
+  if (an.vcp)      criteria.push({n:'VCP co hẹp', v: `${an.vcp.contractions} lần, vol ${an.vcp.vol_declining?'giảm dần ✓':'chưa giảm'}`, ok: !!an.vcp.pass});
+  if (an.breakout) criteria.push({n:'Volume Breakout', v: `${an.breakout.vol_ratio}x TB50 — Pivot ${an.breakout.pivot_52w?.toLocaleString('vi-VN')}`, ok: !!an.breakout.pass});
+  if (an.volume)   criteria.push({n:'Volume surge', v: `${an.volume.vol_ratio}x TB20 phiên`, ok: !!an.volume.pass});
+  if (an.fib)      criteria.push({n:'Fibonacci', v: an.fib.nearest_level ? `Gần ${an.fib.nearest_level} (±${an.fib.distance_pct}%)` : '—', ok: !!an.fib.pass});
+  if (an.elliott)  criteria.push({n:'Sóng Elliott', v: an.elliott.wave || 'Phát hiện cấu trúc sóng', ok: !!an.elliott.pass});
+  criteria.push({n:'RS Rating', v: `${rs}/100`, ok: rs >= 70});
+
+  return {
+    ...s,
+    ticker: s.ticker,
+    name:   s.name || s.ticker,
+    sector: s.sector || 'HOSE',
+    price:  s.price || 0,
+    chg:    chg,
+    sigs:   s.signals || [],
+    ma:     [!!ma.above_ma50, !!ma.above_ma150, !!ma.above_ma200],
+    rs:     rs,
+    vol_ratio: volRatio,
+    metrics: { rs: String(rs), 'vol%': volPct, '52W%': '—', MA50: ma.above_ma50 ? '✓' : '✗' },
+    criteria: criteria,
+    spark:  s.spark || [],
+  };
+}
+
+// ==================== CLOCK ====================
+function updateClock() {
+  const now = new Date();
+  const h = now.getHours().toString().padStart(2,'0');
+  const m = now.getMinutes().toString().padStart(2,'0');
+  document.getElementById('clock').textContent = h+':'+m;
+
+  const isOpen = now.getHours()>=9 && now.getHours()<15 && now.getDay()>=1 && now.getDay()<=5;
+  const dot = document.getElementById('mkt-dot');
+  const lbl = document.getElementById('mkt-label');
+  dot.style.background = isOpen ? 'var(--accent)' : '#636b7a';
+  lbl.textContent = isOpen ? 'Thị trường mở' : 'Thị trường đóng';
+}
+updateClock();
+setInterval(updateClock, 30000);
+
+// ==================== MARKET DATA (real API) ====================
+async function loadMarket() {
+  try {
+    const data = await apiFetch('/api/market');
+    const idx = data.indices || {};
+    if (idx['VN-Index']) setIdx('vnindex', idx['VN-Index'].value.toFixed(2), idx['VN-Index'].change_pct.toFixed(2));
+    if (idx['VN30'])     setIdx('vn30',    idx['VN30'].value.toFixed(2),     idx['VN30'].change_pct.toFixed(2));
+    if (idx['VN-Index']) {
+      document.getElementById('vol-val').textContent = '—';
+      document.getElementById('vol-chg').textContent = 'HOSE hôm nay';
+    }
+  } catch(e) { console.warn('Market API lỗi:', e.message); }
+}
+function setIdx(id, val, chg) {
+  const isUp = parseFloat(chg)>=0;
+  document.getElementById(id+'-val').textContent = val;
+  document.getElementById(id+'-val').className = 'idx-val '+(isUp?'up':'dn');
+  document.getElementById(id+'-chg').textContent = (isUp?'+':'')+chg+'%';
+  document.getElementById(id+'-chg').className = 'idx-chg '+(isUp?'up':'dn');
+}
+loadMarket();
+
+// ==================== MINI SPARK CHART ====================
+function drawSpark(canvas, data, color) {
+  const ctx = canvas.getContext('2d');
+  canvas.width = canvas.offsetWidth * 2;
+  canvas.height = 100;
+  const w = canvas.width, h = canvas.height;
+  const min = Math.min(...data), max = Math.max(...data);
+  const range = max - min || 1;
+  ctx.clearRect(0,0,w,h);
+  ctx.beginPath();
+  data.forEach((v,i) => {
+    const x = (i/(data.length-1))*w;
+    const y = h - ((v-min)/range)*(h-10) - 5;
+    i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+  });
+  ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.stroke();
+  // fill
+  ctx.lineTo(w,h); ctx.lineTo(0,h); ctx.closePath();
+  const grad = ctx.createLinearGradient(0,0,0,h);
+  grad.addColorStop(0, color.replace(')',',0.2)').replace('rgb','rgba'));
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = grad; ctx.fill();
+}
+
+// ==================== SCAN (real API) ====================
+async function runScan() {
+  const btn = document.getElementById('scan-label');
+  const spin = document.getElementById('scan-spin');
+  btn.textContent = 'Đang kết nối backend...';
+  spin.style.display = 'block';
+
+  try {
+    // Kích hoạt quét trên backend
+    btn.textContent = 'Đang quét thị trường...';
+    await fetch(API_BASE + '/api/scan/trigger', { method:'POST', mode:'cors', credentials:'omit' }).catch(()=>{});
+
+    // Lấy dữ liệu (backend có thể đang cache sẵn)
+    btn.textContent = 'Đang tải tín hiệu...';
+    const data = await apiFetch('/api/scan');
+    const raw  = data.stocks || [];
+    LIVE_STOCKS = raw.map(normalizeStock);
+
+    scanned = true;
+    renderStocks(LIVE_STOCKS);
+    document.getElementById('sig-count').textContent = LIVE_STOCKS.length + ' mã';
+
+    const now = new Date();
+    const scanTime = data.last_scan ? new Date(data.last_scan) : now;
+    const hh = scanTime.getHours().toString().padStart(2,'0');
+    const mm = scanTime.getMinutes().toString().padStart(2,'0');
+    document.getElementById('last-scan').textContent =
+      `Dữ liệu thật — cập nhật ${hh}:${mm} — ${data.summary?.total_scanned || raw.length} mã phân tích`;
+
+    // Alert badge breakout
+    const breakoutCount = LIVE_STOCKS.filter(s=>s.sigs.includes('breakout')).length;
+    if (breakoutCount > 0) {
+      document.getElementById('alert-badge').style.display = 'flex';
+      document.getElementById('alert-badge').textContent  = breakoutCount;
+    }
+
+    // Cập nhật thị trường
+    loadMarket();
+
+  } catch(e) {
+    const isTimeout = e.name === 'TimeoutError';
+    document.getElementById('last-scan').textContent =
+      isTimeout ? '⚠ Backend đang khởi động (30-60s) — thử lại sau' : '⚠ Lỗi kết nối: ' + e.message;
+    showToast(isTimeout
+      ? 'Backend đang thức dậy, thử lại sau 30 giây'
+      : 'Lỗi: ' + e.message + ' — kiểm tra URL API_BASE');
+    console.error('Scan error:', e);
+  }
+
+  btn.textContent = '⚡ Quét tín hiệu ngay';
+  spin.style.display = 'none';
+}
+
+function renderStocks(stocks) {
+  const list = document.getElementById('stock-list');
+  let filtered = activeFilter==='all' ? stocks : stocks.filter(s=>(s.sigs||[]).includes(activeFilter));
+  if(filtered.length===0){
+    list.innerHTML = scanned
+      ? '<div class="empty">Không có mã nào phù hợp bộ lọc này</div>'
+      : '<div class="empty">Nhấn "Quét tín hiệu ngay" để bắt đầu phân tích</div>';
+    return;
+  }
+  list.innerHTML = filtered.map(s => `
+    <div class="stock-card sig-${s.sigs[0]}" onclick="openDetail('${s.ticker}')">
+      <div class="card-top">
+        <div>
+          <div class="ticker">${s.ticker}</div>
+          <div class="company-name">${s.name}</div>
+        </div>
+        <div class="price-box">
+          <div class="price ${s.chg>=0?'up':'dn'}">${s.price.toLocaleString('vi-VN')}</div>
+          <div class="price-chg ${s.chg>=0?'up':'dn'}">${s.chg>=0?'+':''}${s.chg}%</div>
+        </div>
+      </div>
+      <div class="signals">${s.sigs.map(sig=>`<span class="sig-tag ${sig}">${sigLabel(sig)}</span>`).join('')}</div>
+      <div class="mini-chart-wrap">
+        <canvas class="mini" id="spark-${s.ticker}"></canvas>
+      </div>
+      <div class="metrics">
+        <div class="metric"><div class="metric-lbl">RS Rating</div><div class="metric-val ${s.rs>=80?'up':s.rs>=60?'':'dn'}">${s.rs}</div></div>
+        <div class="metric"><div class="metric-lbl">Vol</div><div class="metric-val ${s.vol_ratio>1.5?'up':''}">${s.metrics['vol%']}</div></div>
+        <div class="metric"><div class="metric-lbl">52W</div><div class="metric-val up">${s.metrics['52W%']}</div></div>
+        <div class="metric"><div class="metric-lbl">MA50</div><div class="metric-val ${s.ma[0]?'up':'dn'}">${s.ma[0]?'Trên':'Dưới'}</div></div>
+      </div>
+      <div class="ma-bar">
+        <span class="ma-pill ${s.ma[0]?'ok':'bad'}">MA50 ${s.ma[0]?'✓':'✗'}</span>
+        <span class="ma-pill ${s.ma[1]?'ok':'bad'}">MA150 ${s.ma[1]?'✓':'✗'}</span>
+        <span class="ma-pill ${s.ma[2]?'ok':'bad'}">MA200 ${s.ma[2]?'✓':'✗'}</span>
+      </div>
+    </div>
+  `).join('');
+
+  // draw sparks after render
+  setTimeout(() => {
+    filtered.forEach(s => {
+      const c = document.getElementById('spark-'+s.ticker);
+      if(c) drawSpark(c, s.spark, s.chg>=0?'#00e5a0':'#ff4757');
+    });
+  }, 50);
+}
+
+function sigLabel(s) {
+  return {breakout:'⚡ Breakout',vcp:'🔵 VCP',stage2:'🟡 Stage 2',volume:'🔴 Vol Surge',fib:'🟣 Fibonacci',elliott:'🟠 Elliott'}[s]||s;
+}
+
+// ==================== FILTERS ====================
+function toggleFilter(btn, filter) {
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  activeFilter = filter;
+  if(scanned) renderStocks(LIVE_STOCKS);
+}
+
+// ==================== DETAIL ====================
+function openDetail(ticker) {
+  const s = LIVE_STOCKS.find(x=>x.ticker===ticker);
+  if(!s) return;
+  currentStock = s;
+  document.getElementById('d-ticker').textContent = s.ticker;
+  document.getElementById('d-sector').textContent = s.sector;
+  document.getElementById('d-price').innerHTML = `<span class="${s.chg>=0?'up':'dn'}">${s.price.toLocaleString('vi-VN')} đ &nbsp;${s.chg>=0?'+':''}${s.chg}%</span>`;
+  document.getElementById('d-signals').innerHTML = s.sigs.map(sig=>`<span class="sig-tag ${sig}">${sigLabel(sig)}</span>`).join('');
+  document.getElementById('d-criteria').innerHTML = s.criteria.map(c=>`
+    <div class="criteria-row">
+      <div class="criteria-name">${c.n}</div>
+      <div class="criteria-val ${c.ok?'up':'dn'}">${c.v}</div>
+    </div>
+  `).join('');
+  const dc = document.getElementById('d-chart');
+  document.getElementById('detail-panel').classList.add('open');
+  setTimeout(()=>drawSpark(dc,s.spark,s.chg>=0?'#00e5a0':'#ff4757'),100);
+}
+function closeDetail(e) {
+  if(!e || e.target===document.getElementById('detail-panel')) {
+    document.getElementById('detail-panel').classList.remove('open');
+  }
+}
+function addCurrentToWatchlist() {
+  if(!currentStock) return;
+  if(!watchlist.includes(currentStock.ticker)){
+    watchlist.push(currentStock.ticker);
+    localStorage.setItem('wl',JSON.stringify(watchlist));
+    updateWatchlistBadge();
+  }
+  document.getElementById('detail-panel').classList.remove('open');
+  showToast(currentStock.ticker+' đã thêm vào Watchlist');
+}
+function setAlert() {
+  showToast('Cảnh báo đã được đặt cho '+currentStock.ticker);
+  document.getElementById('detail-panel').classList.remove('open');
+}
+
+// ==================== WATCHLIST ====================
+function addToWatchlist() {
+  const input = document.getElementById('wl-input');
+  const ticker = input.value.trim().toUpperCase();
+  if(!ticker) return;
+  if(!watchlist.includes(ticker)) {
+    watchlist.push(ticker);
+    localStorage.setItem('wl',JSON.stringify(watchlist));
+  }
+  input.value='';
+  renderWatchlist();
+  updateWatchlistBadge();
+}
+async function renderWatchlist() {
+  const el = document.getElementById('watchlist-stocks');
+  document.getElementById('wl-count').textContent = watchlist.length + ' mã';
+  if(watchlist.length === 0) {
+    el.innerHTML = '<div class="empty">Chưa có mã nào — thêm mã để theo dõi</div>';
+    return;
+  }
+  el.innerHTML = '<div class="empty">Đang tải dữ liệu...</div>';
+
+  // Ưu tiên dùng dữ liệu đã có trong LIVE_STOCKS (không tốn API call)
+  let wlData = watchlist.map(t => LIVE_STOCKS.find(x => x.ticker === t)).filter(Boolean);
+  const missing = watchlist.filter(t => !LIVE_STOCKS.find(x => x.ticker === t));
+
+  // Nếu có mã chưa có trong cache → gọi API
+  if (missing.length > 0) {
+    try {
+      const res = await apiFetch('/api/watchlist/analyze?tickers=' + missing.join(','));
+      const extra = (res.stocks || []).map(normalizeStock);
+      wlData = [...wlData, ...extra];
+    } catch(e) {
+      // Hiện mã không có dữ liệu
+      missing.forEach(t => wlData.push({ ticker:t, sigs:[], price:0, chg:0, ma:[false,false,false], rs:0, vol_ratio:1, metrics:{'vol%':'—','52W%':'—',MA50:'—'}, criteria:[], spark:[] }));
+    }
+  }
+
+  el.innerHTML = wlData.map(s => {
+    if (!s.price) return `
+      <div class="stock-card sig-watch">
+        <div class="card-top">
+          <div><div class="ticker">${s.ticker}</div><div class="company-name">Chưa có dữ liệu</div></div>
+          <div class="price-box"><div class="price flat">—</div></div>
+        </div>
+        <button onclick="removeFromWatchlist('${s.ticker}')" style="width:100%;background:transparent;border:1px solid var(--border2);color:var(--muted);border-radius:6px;padding:7px;font-family:var(--mono);font-size:11px;cursor:pointer">Xóa</button>
+      </div>`;
+    return `
+      <div class="stock-card sig-${s.sigs[0]||'watch'}" onclick="openDetail('${s.ticker}')">
+        <div class="card-top">
+          <div><div class="ticker">${s.ticker}</div><div class="company-name">${s.name||s.ticker}</div></div>
+          <div class="price-box">
+            <div class="price ${s.chg>=0?'up':'dn'}">${s.price.toLocaleString('vi-VN')}</div>
+            <div class="price-chg ${s.chg>=0?'up':'dn'}">${s.chg>=0?'+':''}${s.chg}%</div>
+          </div>
+        </div>
+        <div class="signals">${(s.sigs||[]).map(sg=>`<span class="sig-tag ${sg}">${sigLabel(sg)}</span>`).join('')||'<span style="font-size:10px;color:var(--muted)">Không có tín hiệu</span>'}</div>
+        <div class="ma-bar">
+          <span class="ma-pill ${s.ma[0]?'ok':'bad'}">MA50 ${s.ma[0]?'✓':'✗'}</span>
+          <span class="ma-pill ${s.ma[1]?'ok':'bad'}">MA150 ${s.ma[1]?'✓':'✗'}</span>
+          <span class="ma-pill ${s.ma[2]?'ok':'bad'}">MA200 ${s.ma[2]?'✓':'✗'}</span>
+        </div>
+        <button onclick="event.stopPropagation();removeFromWatchlist('${s.ticker}')" style="margin-top:8px;width:100%;background:transparent;border:1px solid var(--border2);color:var(--muted);border-radius:6px;padding:7px;font-family:var(--mono);font-size:11px;cursor:pointer">Xóa khỏi danh sách</button>
+      </div>`;
+  }).join('');
+}
+function removeFromWatchlist(ticker) {
+  watchlist = watchlist.filter(t=>t!==ticker);
+  localStorage.setItem('wl',JSON.stringify(watchlist));
+  renderWatchlist();
+  updateWatchlistBadge();
+}
+function updateWatchlistBadge() {
+  const badge = document.getElementById('wl-badge');
+  badge.style.display = watchlist.length>0?'flex':'none';
+  badge.textContent = watchlist.length;
+  document.getElementById('wl-count').textContent = watchlist.length+' mã';
+}
+
+// ==================== ALERTS ====================
+function toggleAlert(btn) { btn.classList.toggle('on'); }
+function saveEmail() {
+  const v = document.getElementById('email-in').value;
+  if(v) { localStorage.setItem('alert-email',v); showToast('Email đã lưu: '+v); }
+}
+function updateFreq() {
+  const v = document.getElementById('freq-sel').value;
+  const labels = {instant:'Tức thì khi có tín hiệu',daily:'Hàng ngày lúc 18:00',weekly:'Tổng hợp hàng tuần'};
+  document.getElementById('freq-label').textContent = labels[v];
+}
+
+// ==================== TABS ====================
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    t.classList.toggle('active', ['scanner','watchlist','alerts','guide'][i]===tab);
+  });
+  switchPage(tab);
+}
+function switchPage(page) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+page).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach((n,i)=>{
+    n.classList.toggle('active',['scanner','watchlist','alerts','guide'][i]===page);
+  });
+  document.querySelectorAll('.tab').forEach((t,i)=>{
+    t.classList.toggle('active',['scanner','watchlist','alerts','guide'][i]===page);
+  });
+  if(page==='watchlist') renderWatchlist();
+}
+
+// ==================== TOAST ====================
+function showToast(msg) {
+  let t = document.getElementById('toast');
+  if(!t){
+    t = document.createElement('div');
+    t.id='toast';
+    t.style.cssText='position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#1a2030;border:1px solid var(--border2);color:var(--accent);padding:10px 18px;border-radius:20px;font-size:12px;font-family:var(--mono);z-index:300;transition:opacity 0.3s';
+    document.body.appendChild(t);
+  }
+  t.textContent=msg; t.style.opacity='1';
+  setTimeout(()=>t.style.opacity='0',2500);
+}
+
+// Init
+updateWatchlistBadge();
+document.getElementById('email-in').value = localStorage.getItem('alert-email')||'';
+</script>
+</body>
+</html>

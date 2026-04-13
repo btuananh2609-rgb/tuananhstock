@@ -6,7 +6,8 @@ tiêu chí Minervini + Robert Miner, phục vụ web app qua REST API.
 
 from fastapi import FastAPI, BackgroundTasks, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 import asyncio, logging, os
 from datetime import datetime, timedelta
 from typing import Optional
@@ -171,6 +172,16 @@ def analyze_watchlist(tickers: str = Query(..., description="Danh sách mã, cá
 @app.get("/health")
 def health():
     return {"status": "ok", "time": datetime.now().isoformat()}
+
+
+@app.get("/app", response_class=HTMLResponse)
+def serve_app():
+    """Phục vụ Web App HTML trực tiếp từ server."""
+    html_path = os.path.join(os.path.dirname(__file__), "vnstock-scanner.html")
+    if not os.path.exists(html_path):
+        raise HTTPException(status_code=404, detail="File HTML không tìm thấy — hãy upload vnstock-scanner.html vào repo")
+    with open(html_path, "r", encoding="utf-8") as f:
+        return HTMLResponse(content=f.read())
 
 
 # Chạy trực tiếp (fallback nếu không dùng uvicorn command)
