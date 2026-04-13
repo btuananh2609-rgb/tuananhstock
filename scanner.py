@@ -45,6 +45,10 @@ def fetch_history(ticker: str, days: int = 300) -> Optional[pd.DataFrame]:
     """Lấy lịch sử giá từ VCI qua vnstock."""
     try:
         from vnstock import Quote
+        # Đọc API key từ biến môi trường Render
+        api_key = os.environ.get("VNSTOCK_API_KEY", "")
+        if api_key:
+            os.environ["VNSTOCK_API_KEY"] = api_key
         end = datetime.today().strftime("%Y-%m-%d")
         start = (datetime.today() - timedelta(days=days)).strftime("%Y-%m-%d")
         quote = Quote(symbol=ticker, source="VCI")
