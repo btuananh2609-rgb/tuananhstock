@@ -664,18 +664,61 @@ function normalizeStock(s) {
 // ==================== CLOCK ====================
 function updateClock() {
   const now = new Date();
-  const h = now.getHours().toString().padStart(2,'0');
-  const m = now.getMinutes().toString().padStart(2,'0');
-  document.getElementById('clock').textContent = h+':'+m;
+  const h = now.getHours();
+  const m = now.getMinutes();
+  const hh = h.toString().padStart(2,'0');
+  const mm = m.toString().padStart(2,'0');
+  document.getElementById('clock').textContent = hh+':'+mm;
 
-  const isOpen = now.getHours()>=9 && now.getHours()<15 && now.getDay()>=1 && now.getDay()<=5;
-  const dot = document.getElementById('mkt-dot');
-  const lbl = document.getElementById('mkt-label');
-  dot.style.background = isOpen ? 'var(--accent)' : '#636b7a';
-  lbl.textContent = isOpen ? 'Thị trường mở' : 'Thị trường đóng';
+  const day = now.getDay(); // 0=CN, 1-5=T2-T6, 6=T7
+  const isWeekday = day >= 1 && day <= 5;
+  const timeVal = h * 100 + m; // dạng số HHMM để so sánh dễ
+
+  // Xác định trạng thái phiên giao dịch HOSE
+  let status = '';
+  let dotColor = '#636b7a'; // mặc định: xám = đóng
+
+  if (!isWeekday) {
+    status = 'Nghỉ cuối tuần';
+  } else if (timeVal < 845) {
+    status = 'Chưa mở cửa';
+  } else if (timeVal >= 845 && timeVal < 900) {
+    status = 'Chuẩn bị mở cửa';
+    dotColor = '#ffb800'; // vàng
+  } else if (timeVal >= 900 && timeVal < 915) {
+    status = '🔔 Phiên mở cửa (ATO)';
+    dotColor = '#00e5a0'; // xanh
+  } else if (timeVal >= 915 && timeVal < 1130) {
+    status = 'Thị trường mở — Sáng';
+    dotColor = '#00e5a0';
+  } else if (timeVal >= 1130 && timeVal < 1300) {
+    status = 'Nghỉ trưa';
+    dotColor = '#ffb800';
+  } else if (timeVal >= 1300 && timeVal < 1430) {
+    status = 'Thị trường mở — Chiều';
+    dotColor = '#00e5a0';
+  } else if (timeVal >= 1430 && timeVal < 1445) {
+    status = '🔔 Phiên đóng cửa (ATC)';
+    dotColor = '#ff4757'; // đỏ
+  } else if (timeVal >= 1445 && timeVal < 1500) {
+    status = 'Sau giờ giao dịch';
+    dotColor = '#636b7a';
+  } else {
+    status = 'Thị trường đóng';
+  }
+
+  document.getElementById('mkt-dot').style.background = dotColor;
+  document.getElementById('mkt-label').textContent = status;
+
+  // Nhấp nháy dot khi thị trường đang mở
+  const isOpen = (isWeekday && (
+    (timeVal >= 900 && timeVal < 1130) ||
+    (timeVal >= 1300 && timeVal < 1445)
+  ));
+  document.getElementById('mkt-dot').style.animation = isOpen ? 'pulse 2s infinite' : 'none';
 }
 updateClock();
-setInterval(updateClock, 30000);
+setInterval(updateClock, 10000); // cập nhật mỗi 10 giây
 
 // ==================== MARKET DATA (real API) ====================
 async function loadMarket() {

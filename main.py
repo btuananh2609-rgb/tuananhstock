@@ -43,18 +43,21 @@ async def startup():
     log.info("🚀 VNScan backend khởi động")
     # Quét ngay lần đầu khi server start
     asyncio.create_task(scheduled_scan())
-    # Cron: mỗi 15 phút trong giờ giao dịch (9:00–15:10 thứ 2–6)
+    # Chuẩn bị trước giờ mở cửa
     scheduler.add_job(scheduled_scan, "cron",
-                      day_of_week="mon-fri",
-                      hour="9-15", minute="*/15")
-    # Quét thêm lúc 8:45 để chuẩn bị trước giờ mở cửa
+                      day_of_week="mon-fri", hour=8, minute=45)
+    # Phiên sáng: 9:00 – 11:30 mỗi 15 phút
     scheduler.add_job(scheduled_scan, "cron",
-                      day_of_week="mon-fri",
-                      hour=8, minute=45)
+                      day_of_week="mon-fri", hour="9-11", minute="0,15,30,45")
+    # Loại bỏ 11:45 (đã nghỉ trưa) — thêm 11:15 và 11:30
+    # Phiên chiều: 13:00 – 14:45 mỗi 15 phút
+    scheduler.add_job(scheduled_scan, "cron",
+                      day_of_week="mon-fri", hour=13, minute="0,15,30,45")
+    scheduler.add_job(scheduled_scan, "cron",
+                      day_of_week="mon-fri", hour=14, minute="0,15,30,45")
     # Reset tracker email mỗi sáng 8:00
     scheduler.add_job(reset_daily_tracker, "cron",
-                      day_of_week="mon-fri",
-                      hour=8, minute=0)
+                      day_of_week="mon-fri", hour=8, minute=0)
     scheduler.start()
 
 
