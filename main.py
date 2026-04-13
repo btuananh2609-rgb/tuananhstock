@@ -169,3 +169,10 @@ def analyze_watchlist(tickers: str = Query(..., description="Danh sách mã, cá
 @app.get("/health")
 def health():
     return {"status": "ok", "time": datetime.now().isoformat()}
+
+
+# Chạy trực tiếp (fallback nếu không dùng uvicorn command)
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
