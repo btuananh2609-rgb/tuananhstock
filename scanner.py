@@ -11,29 +11,26 @@ from typing import Optional
 
 log = logging.getLogger(__name__)
 
-# ── Danh sách mã mặc định để quét toàn thị trường ──────────────────
-# Bạn có thể mở rộng danh sách này hoặc lấy tự động từ vnstock
+# ── Danh sách VN100 đầy đủ (cập nhật 2025) ─────────────────────────
 DEFAULT_WATCHLIST = [
-    # Ngân hàng
+    # VN30 — 30 mã vốn hóa lớn nhất
     "VCB", "BID", "CTG", "MBB", "TCB", "ACB", "VPB", "HDB", "LPB", "STB",
-    # Thép / Vật liệu
-    "HPG", "HSG", "NKG", "TVN",
-    # Công nghệ
-    "FPT", "CMG", "ELC",
-    # Tiêu dùng / Bán lẻ
-    "MWG", "PNJ", "VNM", "SAB", "MSN",
-    # Bất động sản
-    "VHM", "NVL", "DXG", "KDH", "PDR",
-    # Năng lượng / Dầu khí
-    "GAS", "PLX", "PVD", "PVS",
-    # Logistics / Cảng
-    "GMD", "HAH", "VSC",
-    # Hàng không / Du lịch
-    "HVN", "VJC",
-    # Chứng khoán
-    "SSI", "VND", "HCM", "VCI", "MBS",
-    # Dược / Y tế
-    "DHC", "DMC", "IMP",
+    "VHM", "VIC", "VRE", "MSN", "VNM", "SAB", "MCH", "MWG", "PNJ", "FRT",
+    "HPG", "GAS", "PLX", "POW", "GEX", "FPT", "VND", "SSI", "HCM", "VCI",
+    # VN Midcap — 70 mã vốn hóa trung bình
+    "AAA", "AGG", "AGR", "ANV", "BCM", "BSR", "BWE",
+    "CII", "CMG", "CTD", "CTR", "DCM", "DGC", "DGW",
+    "DHC", "DIG", "DPG", "DPM", "DRC", "DXG", "DXS",
+    "EIB", "EVF", "GEG", "GMD", "GSP", "HAG", "HAH",
+    "HAX", "HBC", "HDC", "HDG", "HHV", "HSG", "HT1",
+    "HVN", "IMP", "ITC", "KBC", "KDC", "KDH", "KOS",
+    "LCG", "LHG", "MSB", "NAB", "NKG", "NLG", "NVL",
+    "OCB", "OIL", "PC1", "PDR", "PHR", "PLC", "PME",
+    "PVD", "PVS", "PVT", "QNS", "REE", "SBT", "SCS",
+    "SHB", "SIP", "SKG", "SZC", "TCH", "TDC", "TDM",
+    "TIP", "TLG", "TPB", "TVS", "VCG", "VGC", "VGI",
+    "VHC", "VIB", "VIX", "VJC", "VMC", "VOS", "VSC",
+    "VTP",
 ]
 
 
