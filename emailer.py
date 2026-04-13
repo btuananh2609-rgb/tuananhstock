@@ -23,6 +23,7 @@ SIG_LABELS = {
     "volume":   "🔴 Volume Surge",
     "fib":      "🟣 Fibonacci",
     "elliott":  "🟠 Elliott",
+    "stoch":    "📈 Stoch %K↑%D",
 }
 
 SIG_COLORS = {
@@ -32,6 +33,7 @@ SIG_COLORS = {
     "volume":   "#ff4757",
     "fib":      "#c084fc",
     "elliott":  "#fb923c",
+    "stoch":    "#22d3ee",
 }
 
 
@@ -217,14 +219,20 @@ _last_sent_tickers: set = set()
 
 def is_strong_signal(stock: dict) -> tuple:
     """
-    Kiểm tra tín hiệu theo logic kết hợp Minervini + Miner.
+    Kiểm tra tín hiệu theo logic kết hợp Minervini + Miner + Stochastic.
     Trả về (đủ điều kiện gửi email, mức độ, mô tả).
     """
     sigs = set(stock.get("signals", stock.get("sigs", [])))
+    stoch_info = stock.get("analysis", {}).get("stoch", {})
+    stoch_zone = stoch_info.get("zone", "")
 
     # ⭐ MẠNH NHẤT: Breakout + Stage 2 + Volume (cả 3)
     if {"breakout", "stage2", "volume"}.issubset(sigs):
         return True, "⭐ Mạnh nhất", "Breakout + Stage 2 + Volume Surge"
+
+    # ⭐ Stochastic quá bán + Stage 2 (rất có giá trị)
+    if "stoch" in sigs and "stage2" in sigs and stoch_zone == "Quá bán (<20)":
+        return True, "⭐ Mạnh nhất", "Stoch %K↑%D vùng quá bán + Stage 2"
 
     # 🔵 TỐT: các combo 2 tín hiệu có ý nghĩa
     if {"breakout", "stage2"}.issubset(sigs):
@@ -245,7 +253,18 @@ def is_strong_signal(stock: dict) -> tuple:
     if {"stage2", "volume"}.issubset(sigs):
         return True, "🔵 Tốt", "Stage 2 + Volume Surge"
 
-    # 🟡 ĐƠN LẺ: chỉ 1 tín hiệu → không gửi email
+    # 🔵 Stochastic độc lập — gửi email riêng (vùng quá bán hoặc trung lập)
+    if "stoch" in sigs and stoch_zone == "Quá bán (<20)":
+        k = stoch_info.get("k", 0)
+        d = stoch_info.get("d", 0)
+        return True, "🔵 Tốt", f"Stoch(8,5,3) %K({k}) cắt lên %D({d}) — Vùng quá bán"
+
+    if "stoch" in sigs and stoch_zone == "Trung lập (20–80)":
+        k = stoch_info.get("k", 0)
+        d = stoch_info.get("d", 0)
+        return True, "🔵 Tốt", f"Stoch(8,5,3) %K({k}) cắt lên %D({d}) — Vùng trung lập"
+
+    # 🟡 ĐƠN LẺ: chỉ 1 tín hiệu khác → không gửi email
     return False, "🟡 Đơn lẻ", "Chưa đủ xác nhận"
 
 

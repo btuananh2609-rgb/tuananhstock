@@ -369,7 +369,59 @@ def check_fibonacci_signal(df: pd.DataFrame) -> dict:
     }
 
 
-def check_elliott_signal(df: pd.DataFrame) -> dict:
+def check_stochastic(df: pd.DataFrame, k_period: int = 8, k_smooth: int = 5, d_smooth: int = 3) -> dict:
+    """
+    Stochastic Oscillator (8,5,3) — phát hiện %K cắt lên %D.
+    Hợp lệ khi giao cắt xảy ra trong vùng:
+    - Quá bán: %K < 20 (tín hiệu mạnh hơn)
+    - Trung lập: 20 <= %K < 80
+    Không lấy tín hiệu khi %K >= 80 (vùng quá mua).
+    """
+    try:
+        high  = df["high"]
+        low   = df["low"]
+        close = df["close"]
+
+        # Tính %K thô
+        lowest_low   = low.rolling(window=k_period).min()
+        highest_high = high.rolling(window=k_period).max()
+        denom = highest_high - lowest_low
+        denom = denom.replace(0, np.nan)
+        raw_k = 100 * (close - lowest_low) / denom
+
+        # Làm mượt %K (SMA k_smooth)
+        pct_k = raw_k.rolling(window=k_smooth).mean()
+        # %D = SMA của %K (d_smooth)
+        pct_d = pct_k.rolling(window=d_smooth).mean()
+
+        if pct_k.isna().iloc[-1] or pct_d.isna().iloc[-1]:
+            return {"pass": False, "reason": "Không đủ dữ liệu"}
+
+        k_cur  = float(pct_k.iloc[-1])
+        d_cur  = float(pct_d.iloc[-1])
+        k_prev = float(pct_k.iloc[-2])
+        d_prev = float(pct_d.iloc[-2])
+
+        # Điều kiện giao cắt: %K vừa cắt lên %D
+        crossover = (k_prev <= d_prev) and (k_cur > d_cur)
+
+        # Điều kiện vùng: dưới 80 (quá bán < 20 hoặc trung lập 20-80)
+        valid_zone = k_cur < 80
+        oversold   = k_cur < 20
+
+        zone_label = "Quá bán (<20)" if oversold else "Trung lập (20–80)"
+
+        return {
+            "pass":      crossover and valid_zone,
+            "crossover": crossover,
+            "valid_zone": valid_zone,
+            "oversold":  oversold,
+            "k":         round(k_cur, 1),
+            "d":         round(d_cur, 1),
+            "zone":      zone_label,
+        }
+    except Exception as e:
+        return {"pass": False, "reason": str(e)}
     """
     Nhận diện sóng Elliott đơn giản:
     - Tìm 5 bước sóng lên (1-2-3-4-5) bằng ZigZag
@@ -443,6 +495,7 @@ def analyze_ticker(ticker: str, df: pd.DataFrame) -> Optional[dict]:
         vol_s    = check_volume_surge(df)
         fib      = check_fibonacci_signal(df)
         elliott  = check_elliott_signal(df)
+        stoch    = check_stochastic(df)
         rs       = compute_rs_rating(close)
         rsi_val  = compute_rsi(close)
 
@@ -454,6 +507,7 @@ def analyze_ticker(ticker: str, df: pd.DataFrame) -> Optional[dict]:
         if vol_s["pass"]:     signals.append("volume")
         if fib["pass"]:       signals.append("fib")
         if elliott["pass"]:   signals.append("elliott")
+        if stoch["pass"]:     signals.append("stoch")
 
         if not signals:
             return None   # Không có tín hiệu nào → bỏ qua
@@ -489,6 +543,7 @@ def analyze_ticker(ticker: str, df: pd.DataFrame) -> Optional[dict]:
                 "volume":   vol_s,
                 "fib":      fib,
                 "elliott":  elliott,
+                "stoch":    stoch,
             },
             "spark":       spark,
             "updated_at":  datetime.now().isoformat(),
