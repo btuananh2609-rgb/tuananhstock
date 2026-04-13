@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from scanner import run_full_scan, get_market_overview
+from emailer import send_alert_email, filter_new_signals, reset_daily_tracker
 from cache import cache
 
 # ──────────────────────────────────────────────
@@ -50,6 +51,10 @@ async def startup():
     scheduler.add_job(scheduled_scan, "cron",
                       day_of_week="mon-fri",
                       hour=8, minute=45)
+    # Reset tracker email mỗi sáng 8:00
+    scheduler.add_job(reset_daily_tracker, "cron",
+                      day_of_week="mon-fri",
+                      hour=8, minute=0)
     scheduler.start()
 
 
@@ -67,6 +72,15 @@ async def scheduled_scan():
         cache.set("scan_result", result)
         cache.set("last_scan", datetime.now().isoformat())
         log.info(f"✅ Quét xong: {result['summary']['total_signals']} tín hiệu")
+
+        # Gửi email nếu có tín hiệu mới
+        stocks = result.get("stocks", [])
+        if stocks:
+            new_stocks = filter_new_signals(stocks)
+            if new_stocks:
+                scan_time = datetime.now().isoformat()
+                send_alert_email(new_stocks, scan_time)
+                log.info(f"📧 Gửi email cảnh báo: {len(new_stocks)} tín hiệu mới")
     except Exception as e:
         log.error(f"❌ Lỗi quét: {e}")
 
